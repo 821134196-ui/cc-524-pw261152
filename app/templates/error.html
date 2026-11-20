@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}错误 {{ code }}{% endblock %}
+{% block content %}
+<h1>错误 {{ code }}</h1>
+<div class="card"><p class="err">{{ message }}</p>
+<p><a class="btn" href="{{ url_for('page_dashboard') }}">返回看板</a></p></div>
+{% endblock %}

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% set refresh = running %}
+{% set b = lineage.batch %}
+{% block title %}批次 #{{ b.id }}{% endblock %}
+{% block content %}
+<h1>
+  批次 #{{ b.id }} <code>{{ b.batch_key }}</code>
+  <span class="badge st-{{ b.status }}">{{ b.status }}</span>
+  {% if active_pub %}<span class="badge st-published">已发布</span>{% endif %}
+</h1>
+{% if b.note %}<p class="muted">{{ b.note }}</p>{% endif %}
+{% if b.error %}<p class="err">错误：{{ b.error }}</p>{% endif %}
+<p class="muted">
+  创建 {{ b.created_at }}{% if b.started_at %} · 开始 {{ b.started_at }}{% endif %}{% if b.finished_at %} · 完成 {{ b.finished_at }}{% endif %}
+  {% if b.rerun_of %} · 重跑自 <a href="{{ url_for('page_batch', batch_id=b.rerun_of) }}">批次 #{{ b.rerun_of }}</a>（第 {{ b.run_index }} 次运行）{% endif %}
+</p>
+{% if running %}<p class="muted">批次运行中，页面每 3 秒自动刷新。</p>{% endif %}
+
+<h2>血缘链路（可追溯）</h2>
+<div class="chain">
+  <div class="node">
+    <div class="t">输入数据 Dataset</div>
+    <div class="v">{{ lineage.dataset.name }}@{{ lineage.dataset.version }}</div>
+    <div class="muted">{{ lineage.dataset.n_records }} 条记录</div>
+    <div class="hash">sha256: {{ lineage.dataset.content_hash[:16] }}…</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node">
+    <div class="t">特征快照 Snapshot</div>
+    <div class="v">{{ lineage.snapshot.name }}@{{ lineage.snapshot.version }}</div>
+    <div class="muted">{{ lineage.snapshot.n_records }} 条 · 字段 {{ lineage.snapshot.feature_config_json }}</div>
+    <div class="hash">sha256: {{ lineage.snapshot.content_hash[:16] }}…</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node">
+    <div class="t">模型 Model</div>
+    <div class="v">{{ lineage.model.name }}@{{ lineage.model.version }}</div>
+    <div><span class="badge st-{{ lineage.model.status }}">{{ lineage.model.status }}</span></div>
+    <div class="hash">sha256: {{ lineage.model.content_hash[:16] }}…</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node">
+    <div class="t">参数 Params</div>
+    <div class="v"><code>{{ b.params_json }}</code></div>
+    <div class="hash">sha256: {{ b.params_hash[:16] }}…</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node">
+    <div class="t">输出结果 Results</div>
+    {% for r in lineage.results %}
+    <div class="v">v{{ r.version }} · {{ r.n_rows }} 行
+      <a href="{{ url_for('api_download', result_id=r.id) }}">下载</a></div>
+    <div class="hash">sha256: {{ r.content_hash[:16] }}…</div>
+    {% else %}<div class="muted">尚未产出</div>{% endfor %}
+  </div>
+</div>
+
+<h2>操作</h2>
+<div class="card">
+  {% if active_pub %}
+  <form class="inline" method="post" action="{{ url_for('ui_withdraw', batch_id=b.id) }}">
+    <button class="btn btn-danger" type="submit">撤回发布</button>
+  </form>
+  <span class="muted">发布于 {{ active_pub.published_at }}（结果 v{{ active_pub.result_id }}）</span>
+  {% else %}
+  <form class="inline" method="post" action="{{ url_for('ui_publish', batch_id=b.id) }}">
+    <button class="btn btn-primary" type="submit"
+      {% if b.status not in ('success','partial_failed') %}disabled title="仅成功/部分失败的批次可发布"{% endif %}>发布</button>
+  </form>
+  <span class="muted">重复发布是幂等的：同一批次最多一个有效发布。</span>
+  {% endif %}
+</div>
+
+<div class="card">
+  <b>重跑此批次</b><span class="muted">（生成新批次并链接到本批次；旧结果保留可下载。留空则沿用原输入）</span>
+  <form method="post" action="{{ url_for('ui_rerun', batch_id=b.id) }}">
+    <div class="form-row">
+      <div>
+        <label>覆盖特征快照（补数据后选新快照）</label>
+        <select name="snapshot_id">
+          <option value="">沿用 #{{ b.snapshot_id }}</option>
+          {% for s in snapshots %}<option value="{{ s.id }}">#{{ s.id }} {{ s.name }}@{{ s.version }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>覆盖模型（回滚后选旧模型）</label>
+        <select name="model_id">
+          <option value="">沿用 #{{ b.model_id }}</option>
+          {% for m in models %}<option value="{{ m.id }}">#{{ m.id }} {{ m.name }}@{{ m.version }} ({{ m.status }})</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>覆盖参数 JSON（留空沿用）</label>
+        <input type="text" name="params" placeholder='{"threshold": 0.6}'>
+      </div>
+    </div>
+    <p><button class="btn btn-primary" type="submit">重跑</button></p>
+  </form>
+</div>
+
+<div class="card">
+  <b>差异对比</b><span class="muted">（与另一批次逐条对比得分/状态，并显示血缘差异）</span>
+  <form method="get" onsubmit="event.preventDefault(); location.href='/batches/{{ b.id }}/diff/'+document.getElementById('other').value;">
+    <select id="other">
+      {% for ob in all_batches %}{% if ob.id != b.id %}
+      <option value="{{ ob.id }}">#{{ ob.id }} {{ ob.batch_key }} ({{ ob.status }})</option>
+      {% endif %}{% endfor %}
+    </select>
+    <p><button class="btn" type="submit">对比</button></p>
+  </form>
+</div>
+
+{% if lineage.reruns %}
+<h2>派生重跑</h2>
+<table>
+  <tr><th>ID</th><th>批次键</th><th>状态</th><th>第几次运行</th><th>操作</th></tr>
+  {% for r in lineage.reruns %}
+  <tr>
+    <td>{{ r.id }}</td><td><code>{{ r.batch_key }}</code></td>
+    <td><span class="badge st-{{ r.status }}">{{ r.status }}</span></td>
+    <td>{{ r.run_index }}</td>
+    <td><a class="btn" href="{{ url_for('page_batch', batch_id=r.id) }}">详情</a>
+        <a class="btn" href="{{ url_for('page_diff', a_id=b.id, b_id=r.id) }}">与本批次对比</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h2>发布历史</h2>
+<table>
+  <tr><th>ID</th><th>结果版本</th><th>状态</th><th>发布时间</th><th>撤回时间</th></tr>
+  {% for p in lineage.publications %}
+  <tr>
+    <td>{{ p.id }}</td><td>result #{{ p.result_id }}</td>
+    <td><span class="badge st-{{ p.status }}">{{ p.status }}</span></td>
+    <td>{{ p.published_at }}</td><td>{{ p.withdrawn_at or '—' }}</td>
+  </tr>
+  {% else %}<tr><td colspan="5" class="muted">从未发布</td></tr>{% endfor %}
+</table>
+
+<h2>评分明细（{{ b.succeeded_items }}/{{ b.total_items }} 成功）</h2>
+<table>
+  <tr><th>条目键</th><th>状态</th><th>得分</th><th>标签</th><th>特征</th><th>错误</th></tr>
+  {% for i in items %}
+  <tr class="{% if i.status == 'failed' %}diff-removed{% endif %}">
+    <td><code>{{ i.item_key }}</code></td>
+    <td><span class="badge st-{{ 'success' if i.status == 'success' else 'failed' }}">{{ i.status }}</span></td>
+    <td>{{ '%.6f'|format(i.score) if i.score is not none else '—' }}</td>
+    <td>{{ i.label if i.label is not none else '—' }}</td>
+    <td class="hash">{{ i.features_json }}</td>
+    <td class="err">{{ i.error or '' }}</td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="muted">暂无明细（批次未运行）</td></tr>{% endfor %}
+</table>
+{% endblock %}

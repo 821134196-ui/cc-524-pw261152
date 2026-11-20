@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}提交批次{% endblock %}
+{% block content %}
+<h1>提交批次</h1>
+<div class="card">
+  <form method="post" action="{{ url_for('ui_submit_batch') }}">
+    <div class="form-row">
+      <div>
+        <label>批次键（幂等键，重复提交不会重复执行/发布）</label>
+        <input type="text" name="batch_key" required placeholder="daily-score-2026-11-20">
+      </div>
+      <div>
+        <label>特征快照</label>
+        <select name="snapshot_id">
+          {% for s in snapshots %}<option value="{{ s.id }}">#{{ s.id }} {{ s.name }}@{{ s.version }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>模型</label>
+        <select name="model_id">
+          {% for m in models %}<option value="{{ m.id }}">#{{ m.id }} {{ m.name }}@{{ m.version }} ({{ m.status }})</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label>参数 JSON（可选，如 threshold / scale / clip）</label>
+        <input type="text" name="params" placeholder='{"threshold": 0.5}'>
+      </div>
+      <div>
+        <label>备注（可选）</label>
+        <input type="text" name="note" placeholder="每日评分">
+      </div>
+    </div>
+    <p><button class="btn btn-primary" type="submit">提交并运行</button></p>
+  </form>
+</div>
+{% if not snapshots or not models %}
+<p class="err">需要先在「资产」页注册数据集、构建特征快照并注册模型。</p>
+{% endif %}
+{% endblock %}

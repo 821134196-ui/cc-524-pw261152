@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}资产{% endblock %}
+{% block content %}
+<h1>资产：数据 / 特征快照 / 模型</h1>
+
+<h2>数据集</h2>
+<div class="card">
+  <form method="post" action="{{ url_for('ui_dataset') }}" enctype="multipart/form-data">
+    <div class="form-row">
+      <div><label>名称</label><input type="text" name="name" required placeholder="orders"></div>
+      <div><label>版本</label><input type="text" name="version" required placeholder="v1"></div>
+      <div><label>JSONL 文件（每行一个含 item_key 的 JSON）</label><input type="file" name="file"></div>
+    </div>
+    <label>或直接粘贴 JSONL</label>
+    <textarea name="content" rows="3" placeholder='{"item_key":"u1","age":30,"income":8000}'></textarea>
+    <p><button class="btn btn-primary" type="submit">注册数据集</button></p>
+  </form>
+</div>
+<table>
+  <tr><th>ID</th><th>名称@版本</th><th>记录数</th><th>内容哈希</th><th>创建时间</th></tr>
+  {% for d in datasets %}
+  <tr><td>{{ d.id }}</td><td>{{ d.name }}@{{ d.version }}</td><td>{{ d.n_records }}</td>
+    <td class="hash">{{ d.content_hash[:16] }}…</td><td class="muted">{{ d.created_at }}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">暂无</td></tr>{% endfor %}
+</table>
+
+<h2>特征快照（从数据集物化，冻结特征值）</h2>
+<div class="card">
+  <form method="post" action="{{ url_for('ui_snapshot') }}">
+    <div class="form-row">
+      <div><label>源数据集</label>
+        <select name="dataset_id">{% for d in datasets %}<option value="{{ d.id }}">#{{ d.id }} {{ d.name }}@{{ d.version }}</option>{% endfor %}</select></div>
+      <div><label>名称</label><input type="text" name="name" required placeholder="orders-features"></div>
+      <div><label>版本</label><input type="text" name="version" required placeholder="v1"></div>
+      <div><label>特征字段（逗号分隔）</label><input type="text" name="fields" required placeholder="age,income,clicks"></div>
+    </div>
+    <p><button class="btn btn-primary" type="submit">构建快照</button></p>
+  </form>
+</div>
+<table>
+  <tr><th>ID</th><th>名称@版本</th><th>源数据集</th><th>记录数</th><th>内容哈希</th><th>创建时间</th></tr>
+  {% for s in snapshots %}
+  <tr><td>{{ s.id }}</td><td>{{ s.name }}@{{ s.version }}</td>
+    <td>{{ s.dataset_name }}@{{ s.dataset_version }}</td><td>{{ s.n_records }}</td>
+    <td class="hash">{{ s.content_hash[:16] }}…</td><td class="muted">{{ s.created_at }}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">暂无</td></tr>{% endfor %}
+</table>
+
+<h2>模型</h2>
+<div class="card">
+  <form method="post" action="{{ url_for('ui_model') }}">
+    <div class="form-row">
+      <div><label>名称</label><input type="text" name="name" required placeholder="ctr-model"></div>
+      <div><label>版本</label><input type="text" name="version" required placeholder="v1"></div>
+    </div>
+    <label>模型定义 JSON（weights / bias / output）</label>
+    <textarea name="artifact" rows="3" required placeholder='{"weights":{"age":0.02,"income":0.0001},"bias":-1.0,"output":"sigmoid"}'></textarea>
+    <p><button class="btn btn-primary" type="submit">注册模型</button></p>
+  </form>
+</div>
+<table>
+  <tr><th>ID</th><th>名称@版本</th><th>状态</th><th>内容哈希</th><th>创建时间</th><th>操作</th></tr>
+  {% for m in models %}
+  <tr>
+    <td>{{ m.id }}</td><td>{{ m.name }}@{{ m.version }}</td>
+    <td><span class="badge st-{{ m.status }}">{{ m.status }}</span></td>
+    <td class="hash">{{ m.content_hash[:16] }}…</td><td class="muted">{{ m.created_at }}</td>
+    <td>{% if m.status == 'active' %}
+      <form class="inline" method="post" action="{{ url_for('ui_rollback', model_id=m.id) }}">
+        <button class="btn btn-danger" type="submit">回滚</button>
+      </form>{% else %}<span class="muted">已回滚</span>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="muted">暂无</td></tr>{% endfor %}
+</table>
+{% endblock %}

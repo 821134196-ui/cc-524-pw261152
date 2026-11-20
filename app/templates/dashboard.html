@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% set refresh = active %}
+{% block title %}批次看板{% endblock %}
+{% block content %}
+<h1>批次看板</h1>
+<div class="grid">
+  <div class="stat"><div class="n">{{ stats.total }}</div><div class="l">总批次</div></div>
+  <div class="stat"><div class="n">{{ stats.running }}</div><div class="l">运行中/排队</div></div>
+  <div class="stat"><div class="n">{{ stats.success }}</div><div class="l">成功</div></div>
+  <div class="stat"><div class="n">{{ stats.partial_failed }}</div><div class="l">部分失败</div></div>
+  <div class="stat"><div class="n">{{ stats.failed }}</div><div class="l">失败</div></div>
+  <div class="stat"><div class="n">{{ stats.published }}</div><div class="l">已发布</div></div>
+</div>
+{% if active %}<p class="muted">有批次正在运行，页面每 3 秒自动刷新。</p>{% endif %}
+<table>
+  <tr>
+    <th>ID</th><th>批次键</th><th>状态</th><th>模型</th><th>特征快照</th>
+    <th>条目(成功/总数)</th><th>发布</th><th>重跑</th><th>创建时间</th><th>操作</th>
+  </tr>
+  {% for b in batches %}
+  <tr>
+    <td>{{ b.id }}</td>
+    <td><code>{{ b.batch_key }}</code>{% if b.note %}<div class="muted" style="font-size:12px">{{ b.note }}</div>{% endif %}</td>
+    <td><span class="badge st-{{ b.status }}">{{ b.status }}</span></td>
+    <td>{{ b.model_name }}@{{ b.model_version }}</td>
+    <td>{{ b.snapshot_name }}@{{ b.snapshot_version }}</td>
+    <td>{{ b.succeeded_items }}/{{ b.total_items }}{% if b.failed_items %} <span class="err">({{ b.failed_items }} 失败)</span>{% endif %}</td>
+    <td>{% if b.published %}<span class="badge st-published">已发布</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td>{% if b.rerun_of %}<a href="{{ url_for('page_batch', batch_id=b.rerun_of) }}">#{{ b.rerun_of }}</a> 的第 {{ b.run_index }} 次重跑{% else %}<span class="muted">原始</span>{% endif %}</td>
+    <td class="muted">{{ b.created_at }}</td>
+    <td><a class="btn" href="{{ url_for('page_batch', batch_id=b.id) }}">详情</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="10" class="muted">暂无批次。先到「资产」页注册数据/快照/模型，再「提交批次」。</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

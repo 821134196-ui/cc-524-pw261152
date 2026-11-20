@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}差异对比 #{{ diff.a.id }} vs #{{ diff.b.id }}{% endblock %}
+{% block content %}
+<h1>差异对比：
+  <a href="{{ url_for('page_batch', batch_id=diff.a.id) }}">批次 #{{ diff.a.id }}</a>
+  vs
+  <a href="{{ url_for('page_batch', batch_id=diff.b.id) }}">批次 #{{ diff.b.id }}</a>
+</h1>
+<p class="muted"><code>{{ diff.a.batch_key }}</code> → <code>{{ diff.b.batch_key }}</code></p>
+
+<h2>血缘差异（输入是否变化）</h2>
+<table>
+  <tr><th>环节</th><th>批次 #{{ diff.a.id }}</th><th>批次 #{{ diff.b.id }}</th><th>是否变化</th></tr>
+  {% for d in diff.lineage_diff %}
+  <tr class="{% if d.changed %}diff-changed{% endif %}">
+    <td>{{ d.part }}</td>
+    <td>{% if d.part == 'params' %}<code>{{ d.a }}</code>{% else %}{{ d.a }}{% endif %}</td>
+    <td>{% if d.part == 'params' %}<code>{{ d.b }}</code>{% else %}{{ d.b }}{% endif %}</td>
+    <td>{% if d.changed %}<b class="neg">已变化</b>{% else %}<span class="muted">一致</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>汇总</h2>
+<div class="grid">
+  <div class="stat"><div class="n">{{ diff.summary.added }}</div><div class="l">新增条目</div></div>
+  <div class="stat"><div class="n">{{ diff.summary.removed }}</div><div class="l">移除条目</div></div>
+  <div class="stat"><div class="n">{{ diff.summary.changed }}</div><div class="l">得分/状态变化</div></div>
+  <div class="stat"><div class="n">{{ diff.summary.unchanged }}</div><div class="l">不变</div></div>
+</div>
+
+{% if diff.changed %}
+<h2>变化条目</h2>
+<table>
+  <tr><th>条目键</th><th>#{{ diff.a.id }} 状态</th><th>#{{ diff.a.id }} 得分</th>
+      <th>#{{ diff.b.id }} 状态</th><th>#{{ diff.b.id }} 得分</th><th>Δ</th></tr>
+  {% for c in diff.changed %}
+  <tr class="diff-changed">
+    <td><code>{{ c.item_key }}</code></td>
+    <td><span class="badge st-{{ 'success' if c.a.status == 'success' else 'failed' }}">{{ c.a.status }}</span></td>
+    <td>{{ '%.6f'|format(c.a.score) if c.a.score is not none else '—' }}</td>
+    <td><span class="badge st-{{ 'success' if c.b.status == 'success' else 'failed' }}">{{ c.b.status }}</span></td>
+    <td>{{ '%.6f'|format(c.b.score) if c.b.score is not none else '—' }}</td>
+    <td>{% if c.delta is not none %}<span class="{{ 'pos' if c.delta > 0 else 'neg' }}">{{ '%+.6f'|format(c.delta) }}</span>{% else %}—{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if diff.added %}
+<h2>新增条目（仅存在于 #{{ diff.b.id }}）</h2>
+<table>
+  <tr><th>条目键</th><th>状态</th><th>得分</th></tr>
+  {% for i in diff.added %}
+  <tr class="diff-added"><td><code>{{ i.item_key }}</code></td><td>{{ i.status }}</td>
+    <td>{{ '%.6f'|format(i.score) if i.score is not none else '—' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if diff.removed %}
+<h2>移除条目（仅存在于 #{{ diff.a.id }}）</h2>
+<table>
+  <tr><th>条目键</th><th>状态</th><th>得分</th></tr>
+  {% for i in diff.removed %}
+  <tr class="diff-removed"><td><code>{{ i.item_key }}</code></td><td>{{ i.status }}</td>
+    <td>{{ '%.6f'|format(i.score) if i.score is not none else '—' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}
